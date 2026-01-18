@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Phase 10 Scorecard</title>
+    <style>
+        :root { --paper: #ffffff; --line: #d1d8e0; --text: #2f3542; --accent: #eb4d4b; --win: #f1c40f; }
+        
+        body { 
+            font-family: "Courier New", Courier, monospace; background: #dfe4ea; 
+            margin: 0; padding: 10px; color: var(--text);
+        }
+
+        /* Setup Screen */
+        #setup-screen { 
+            text-align: center; padding-top: 50px; 
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .btn-start { 
+            background: var(--accent); color: white; padding: 15px 40px; 
+            border: none; border-radius: 30px; font-size: 1.2rem; cursor: pointer; margin-top: 20px;
+        }
+
+        /* Scorecard UI */
+        #game-screen { display: none; }
+        .scorecard-container { display: flex; flex-direction: column; gap: 10px; }
+        
+        .row { 
+            background: var(--paper); border: 2px solid var(--line); 
+            border-radius: 4px; overflow: hidden; position: relative;
+        }
+        .row.winner { border-left: 10px solid var(--win); }
+
+        .main-info { 
+            display: grid; grid-template-columns: 1fr 60px 80px; 
+            align-items: center; border-bottom: 1px solid var(--line);
+        }
+        
+        .name-box { padding: 10px; font-weight: bold; border-right: 2px solid var(--line); }
+        .phase-box { text-align: center; border-right: 2px solid var(--line); height: 100%; display: flex; align-items: center; justify-content: center; background: #f1f2f6; }
+        .total-box { text-align: center; font-size: 1.4rem; font-weight: 900; background: #fff; }
+
+        .name-input { border: none; font-family: inherit; font-size: 1rem; width: 100%; outline: none; }
+        
+        .phase-desc { font-size: 0.7rem; color: #747d8c; padding: 5px 10px; background: #f8f9fa; border-bottom: 1px solid var(--line); }
+
+        /* Calculator Section */
+        .entry-section { padding: 10px; background: #fff; display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+        button { border-radius: 2px; border: 1px solid var(--line); padding: 10px 0; font-family: inherit; cursor: pointer; font-weight: bold; }
+        .btn-v { background: #fff; }
+        .btn-a { background: var(--text); color: #fff; grid-column: span 2; }
+        .btn-c { background: #eee; }
+
+        .history-dots { padding: 5px 10px; display: flex; gap: 5px; flex-wrap: wrap; font-size: 0.7rem; color: #a4b0be; }
+
+        .sticky-nav { position: sticky; bottom: 0; background: var(--text); color: white; padding: 10px; display: flex; justify-content: space-between; margin: 10px -10px -10px -10px; }
+    </style>
+</head>
+<body>
+
+    <div id="setup-screen">
+        <h1>PHASE 10</h1>
+        <p>Select Number of Players</p>
+        <div style="display: flex; gap: 10px;">
+            <select id="player-count" style="font-size: 1.5rem; padding: 10px;">
+                <option value="2">2</option><option value="3">3</option>
+                <option value="4" selected>4</option><option value="5">5</option>
+                <option value="6">6</option>
+            </select>
+        </div>
+        <button class="btn-start" onclick="startGame()">Start Scorecard</button>
+    </div>
+
+    <div id="game-screen">
+        <div class="scorecard-container" id="board"></div>
+        <div class="sticky-nav">
+            <span id="game-info">Phase 10 Card</span>
+            <span onclick="location.reload()" style="text-decoration: underline; font-size: 0.8rem;">Reset Game</span>
+        </div>
+    </div>
+
+    <script>
+        const phases = [
+            "2 Sets of 3", "1 Set of 3 + 1 Run of 4", "1 Set of 4 + 1 Run of 4",
+            "1 Run of 7", "1 Run of 8", "1 Run of 9", "2 Sets of 4",
+            "7 Cards of 1 Color", "1 Set of 5 + 1 Set of 2", "1 Set of 5 + 1 Set of 3"
+        ];
+
+        let gameState = [];
+
+        function startGame() {
+            const count = document.getElementById('player-count').value;
+            gameState = Array.from({ length: count }, (_, i) => ({
+                id: i, name: `Player ${i+1}`, score: 0, phaseIdx: 0, temp: 0, history: []
+            }));
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'block';
+            render();
+        }
+
+        function render() {
+            const board = document.getElementById('board');
+            // Sort by Phase (High to Low), then Score (Low to High)
+            const sorted = [...gameState].sort((a, b) => {
+                if(b.phaseIdx !== a.phaseIdx) return b.phaseIdx - a.phaseIdx;
+                return a.score - b.score;
+            });
+
+            board.innerHTML = sorted.map((p, i) => `
+                <div class="row ${i === 0 ? 'winner' : ''}">
+                    <div class="main-info">
+                        <div class="name-box">
+                            <input class="name-input" value="${p.name}" onchange="updateName(${p.id}, this.value)">
+                        </div>
+                        <div class="phase-box" onclick="advancePhase(${p.id})">
+                            P${p.phaseIdx + 1}
+                        </div>
+                        <div class="total-box">${p.score}</div>
+                    </div>
+                    <div class="phase-desc">Goal: ${phases[p.phaseIdx]}</div>
+                    <div class="entry-section">
+                        <button class="btn-v" onclick="calc(${p.id}, 5)">5</button>
+                        <button class="btn-v" onclick="calc(${p.id}, 10)">10</button>
+                        <button class="btn-v" onclick="calc(${p.id}, 15)">15</button>
+                        <button class="btn-v" onclick="calc(${p.id}, 25)">25</button>
+                        <button class="btn-c" onclick="clearT(${p.id})">C</button>
+                        <button class="btn-a" onclick="apply(${p.id})">Add ${p.temp > 0 ? p.temp : ''}</button>
+                        <button class="btn-v" style="grid-column: span 2; background: #f1f2f6;" onclick="advancePhase(${p.id})">Next Phase ▶</button>
+                    </div>
+                    <div class="history-dots">
+                        ${p.history.map(h => `<span>${h}</span>`).join('|')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateName(id, val) { gameState.find(x => x.id === id).name = val; }
+        function advancePhase(id) { 
+            const p = gameState.find(x => x.id === id);
+            if(p.phaseIdx < 9) p.phaseIdx++;
+            render();
+        }
+        function calc(id, v) { gameState.find(x => x.id === id).temp += v; render(); }
+        function clearT(id) { gameState.find(x => x.id === id).temp = 0; render(); }
+        function apply(id) {
+            const p = gameState.find(x => x.id === id);
+            p.score += p.temp;
+            p.history.push(p.temp);
+            p.temp = 0;
+            render();
+        }
+    </script>
+</body>
+</html>
